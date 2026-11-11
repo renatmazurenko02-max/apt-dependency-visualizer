@@ -1,0 +1,8 @@
+parameter,value
+package_name,gzip
+repository,https://archive.ubuntu.com/ubuntu/dists/noble/main/binary-amd64/Packages.xz
+test_mode,false
+package_version,1.12-1ubuntu3
+ascii_tree,true
+max_depth,2
+filter_substring,

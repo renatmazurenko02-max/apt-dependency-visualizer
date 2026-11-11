@@ -1,6 +1,7 @@
 """Обратный поиск должен учитывать весь каталог и точную выбранную версию."""
 
 import io
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -97,8 +98,12 @@ class ReverseTests(unittest.TestCase):
         """Флаг командной строки включает режим с пояснением стрелок."""
         filename = Path(__file__).resolve().parent.parent / "config-reverse.csv"
         output = io.StringIO()
-        with redirect_stdout(output):
-            result = main([str(filename), "--reverse"])
+        with tempfile.TemporaryDirectory() as directory:
+            with redirect_stdout(output):
+                result = main([
+                    str(filename), "--reverse", "--details", "--no-image",
+                    "--output", directory,
+                ])
         self.assertEqual(result, 0)
         self.assertIn("Обратные зависимости B", output.getvalue())
         self.assertIn("Y зависит от X", output.getvalue())

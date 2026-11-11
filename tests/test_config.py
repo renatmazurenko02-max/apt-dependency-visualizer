@@ -155,11 +155,13 @@ class ConfigTests(unittest.TestCase):
         self.write_config()
         output = io.StringIO()
         with redirect_stdout(output):
-            result = main([str(self.path)])
+            result = main([
+                str(self.path), "--no-image", "--output", str(self.root / "out")
+            ])
         self.assertEqual(result, 0)
         self.assertIn("Граф зависимостей A (версия 1.0):", output.getvalue())
-        self.assertIn("Узлы (1):", output.getvalue())
-        self.assertIn("Связи (0):", output.getvalue())
+        self.assertIn("Узлов: 1; связей: 0", output.getvalue())
+        self.assertNotIn("ASCII-дерево:", output.getvalue())
 
     def test_cli_failure(self):
         """Ошибка выводится в stderr, возвращается ненулевой код."""
