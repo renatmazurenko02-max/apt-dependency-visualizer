@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+# Все настройки обязательны, даже если значение фильтра пустое.
 FIELDS = (
     "package_name",
     "repository",
@@ -49,6 +50,7 @@ def _read_rows(path):
             reader = csv.reader(stream, strict=True)
             if next(reader, None) != HEADER:
                 raise ConfigError("Заголовок CSV должен быть parameter,value.")
+            # CSV возвращает текст; преобразование типов выполняется позже.
             for row in reader:
                 if not row:
                     continue
@@ -64,6 +66,7 @@ def _read_rows(path):
                 values[key] = value
     except (OSError, UnicodeError, csv.Error) as error:
         raise ConfigError(f"Не удалось прочитать CSV: {error}") from error
+    # Находим обязательные настройки, которых не оказалось в файле.
     missing = set(FIELDS) - values.keys()
     if missing:
         names = ", ".join(sorted(missing))
@@ -97,9 +100,11 @@ def _repository(value, test_mode, config_path):
         raise ConfigError("repository: укажите URL или путь к тестовому файлу.")
     if test_mode:
         source = Path(value)
+        # Относительный путь отсчитываем от CSV, а не от папки запуска.
         if not source.is_absolute():
             source = config_path.parent / source
         try:
+            # Здесь проверяем доступность файла без чтения его содержимого.
             with source.open("rb"):
                 pass
         except OSError as error:
@@ -114,6 +119,7 @@ def _validate_url(value):
     """Проверить HTTP(S)-адрес без обращения к сети."""
     try:
         url = urlsplit(value)
+        # Проверяем запись адреса; сетевого запроса на этом этапе нет.
         valid = all((
             url.scheme in ("http", "https"), bool(url.hostname),
             url.port != 0, url.username is None, url.password is None,
@@ -145,11 +151,13 @@ def load_config(filename):
     """Загрузить и проверить все семь параметров конфигурации."""
     path = Path(filename).resolve()
     values = _read_rows(path)
+    # Текст из CSV превращаем в переключатели и целочисленную глубину.
     test_mode = _boolean("test_mode", values["test_mode"])
     ascii_tree = _boolean("ascii_tree", values["ascii_tree"])
     depth = _depth(values["max_depth"])
     _validate_text(values, test_mode)
     _repository(values["repository"], test_mode, path)
+    # Остальной код получает один объект с проверенными настройками.
     return Config(
         package_name=values["package_name"],
         repository=values["repository"],
