@@ -20,7 +20,9 @@ class ConfigTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.path = self.root / "config.csv"
-        (self.root / "graph.json").write_text("{}", encoding="utf-8")
+        (self.root / "graph.json").write_text(
+            '{"A": {"version": "1.0", "dependencies": []}}', encoding="utf-8"
+        )
         self.values = {
             "package_name": "A",
             "repository": "graph.json",
@@ -149,16 +151,14 @@ class ConfigTests(unittest.TestCase):
             load_config(self.path)
 
     def test_cli_success(self):
-        """При успехе печатаются все семь настроек в формате ключ=значение."""
+        """Успешный запуск показывает пакет и отсутствие зависимостей."""
         self.write_config()
         output = io.StringIO()
         with redirect_stdout(output):
             result = main([str(self.path)])
         self.assertEqual(result, 0)
-        lines = output.getvalue().splitlines()
-        self.assertEqual(len(lines), len(FIELDS))
-        self.assertIn("test_mode=true", lines)
-        self.assertIn("filter_substring=", lines)
+        self.assertIn("Прямые зависимости A (версия 1.0):", output.getvalue())
+        self.assertIn("Нет прямых зависимостей.", output.getvalue())
 
     def test_cli_failure(self):
         """Ошибка выводится в stderr, возвращается ненулевой код."""
