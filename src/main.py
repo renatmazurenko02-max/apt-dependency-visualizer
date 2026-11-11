@@ -8,6 +8,7 @@ from pathlib import Path
 from .config import ConfigError, load_config
 from .graph import build_graph, format_graph
 from .packages import RepositoryError, find_package
+from .reverse import build_reverse_graph
 from .source import load_repository
 
 
@@ -17,14 +18,23 @@ FAILURE = 1  # Ненулевой код сообщает об ошибке.
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config.csv"
 
 
+def _analyze(index, package, config, reverse):
+    """Выбрать направление анализа, сохранив одинаковые настройки обхода."""
+    builder = build_reverse_graph if reverse else build_graph
+    return builder(index, package, config.max_depth, config.filter_substring)
+
+
 def main(argv=None):
     """Прочитать настройки, построить граф и показать результат анализа."""
     # Путь к CSV можно передать при запуске; иначе берем config.csv проекта.
     parser = argparse.ArgumentParser(
-        description="Вариант 13. Этап 3: рекурсивный обход зависимостей."
+        description="Вариант 13. Этап 4: прямой и обратный обход зависимостей."
     )
     parser.add_argument(
         "config", nargs="?", default=DEFAULT_CONFIG, help="Путь к CSV-файлу"
+    )
+    parser.add_argument(
+        "--reverse", action="store_true", help="Пакеты, которым нужен исходный"
     )
     args = parser.parse_args(argv)
     try:
@@ -36,10 +46,8 @@ def main(argv=None):
         package = find_package(
             index, config.package_name, config.package_version
         )
-        # 4. Обходим зависимости с учетом глубины, фильтра и циклов.
-        graph = build_graph(
-            index, package, config.max_depth, config.filter_substring
-        )
+        # 4. Выбираем направление; ограничения и DFS одинаковы для обоих.
+        graph = _analyze(index, package, config, args.reverse)
     except (ConfigError, RepositoryError, OSError, ValueError) as error:
         # Ошибку показываем пользователю и завершаемся с ненулевым кодом.
         print(f"Ошибка: {error}", file=sys.stderr)

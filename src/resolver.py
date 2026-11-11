@@ -10,7 +10,7 @@ from .versions import compare_versions, satisfies
 class Resolved:
     """Найденный пакет и исходное условие, которое привело к нему."""
 
-    package: Package  # Настоящий пакет, по зависимостям которого пойдем дальше.
+    package: Package  # Настоящий пакет следующего шага обхода.
     requirement: str  # Исходная запись, включая версию и виртуальное имя.
     group: str  # Полная группа альтернатив для подписи связи в графе.
 
@@ -34,8 +34,8 @@ class Resolver:
         """Проверить буквальное вхождение подстроки с учетом регистра."""
         return bool(self.excluded) and self.excluded in name
 
-    def _candidates(self, dependency):
-        """Найти реальные пакеты, удовлетворяющие одной альтернативе."""
+    def matching(self, dependency):
+        """Найти все записи, удовлетворяющие одной альтернативе."""
         candidates = [
             package for package in self.packages.get(dependency.name, [])
             if satisfies(package.version, dependency)
@@ -46,7 +46,13 @@ class Resolver:
                 candidates.append(package)
             elif provided.version and satisfies(provided.version, dependency):
                 candidates.append(package)
-        return self._newest(candidates)
+        # Для обратного поиска важны все совместимые версии, не только новая.
+        unique = {(item.name, item.version): item for item in candidates}
+        return list(unique.values())
+
+    def _candidates(self, dependency):
+        """Выбрать версии для обычного прямого обхода."""
+        return self._newest(self.matching(dependency))
 
     def _newest(self, candidates):
         """Выбрать новейшую подходящую версию каждого настоящего имени."""

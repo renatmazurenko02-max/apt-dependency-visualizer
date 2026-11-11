@@ -12,7 +12,7 @@ NodeKey = tuple[str, str]
 
 @dataclass(frozen=True)
 class Edge:
-    """Направленная связь: исходный пакет требует целевой пакет."""
+    """Направленная связь обхода; ее смысл зависит от режима графа."""
 
     source: NodeKey
     target: NodeKey
@@ -30,15 +30,19 @@ class DependencyGraph:
     depths: dict[NodeKey, int] = field(default_factory=dict)
     # Здесь отмечаются переходы назад к пакету текущего рекурсивного пути.
     cycle_edges: set[tuple[NodeKey, NodeKey]] = field(default_factory=set)
+    reverse: bool = False  # В обратном режиме цель зависит от источника.
 
 
 class _Builder:
     """Хранить состояние одного обхода, не меняя сами записи каталога."""
 
-    def __init__(self, index, root, max_depth, excluded):
+    def __init__(self, index, root, max_depth, excluded, resolver=None):
         """Подготовить результат и отдельные наборы для контроля обхода."""
         self.graph = DependencyGraph((root.name, root.version))
-        self.resolver = Resolver(index, excluded)
+        # Другой источник переходов позволяет повторно использовать тот же DFS.
+        self.resolver = resolver if resolver is not None else Resolver(
+            index, excluded
+        )
         self.max_depth = max_depth
         self.active = set()  # Только пакеты текущего рекурсивного пути.
         self.expanded_depth = {}  # На какой глубине раскрывали каждый пакет.
@@ -81,11 +85,11 @@ class _Builder:
         self.visit(package, depth + 1)
 
 
-def build_graph(index, root, max_depth, excluded=""):
+def build_graph(index, root, max_depth, excluded="", resolver=None):
     """Построить граф, считая исходный пакет уровнем ноль."""
     if max_depth < 0:
         raise RepositoryError("Глубина графа должна быть неотрицательной.")
-    builder = _Builder(index, root, max_depth, excluded)
+    builder = _Builder(index, root, max_depth, excluded, resolver)
     try:
         builder.visit(root, 0)
     except RecursionError as error:
@@ -100,7 +104,9 @@ def _edge_text(edge, graph):
     source = "@".join(edge.source)
     target = "@".join(edge.target)
     text = f"  {source} -> {target}"
-    if edge.requirement != edge.target[0]:
+    # Исходное условие относится к зависимости, даже если стрелка развернута.
+    dependency_name = edge.source[0] if graph.reverse else edge.target[0]
+    if edge.requirement != dependency_name:
         text += " [" + edge.requirement + "]"
     if "|" in edge.group:
         text += " [варианты: " + edge.group + "]"
@@ -111,7 +117,10 @@ def _edge_text(edge, graph):
 
 def format_graph(graph):
     """Получить список строк для демонстрации графа в терминале."""
-    lines = [f"Граф зависимостей {graph.root[0]} (версия {graph.root[1]}):"]
+    title = "Обратные зависимости" if graph.reverse else "Граф зависимостей"
+    lines = [f"{title} {graph.root[0]} (версия {graph.root[1]}):"]
+    if graph.reverse:
+        lines.append("Стрелка X -> Y означает: пакет Y зависит от X.")
     if not graph.nodes:
         return lines + ["Исходный пакет исключен фильтром."]
     lines.append(f"Узлы ({len(graph.nodes)}):")

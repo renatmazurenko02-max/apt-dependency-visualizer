@@ -1,0 +1,8 @@
+parameter,value
+package_name,B
+repository,examples/repository-reverse.json
+test_mode,true
+package_version,1.0
+ascii_tree,true
+max_depth,1
+filter_substring,
