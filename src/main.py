@@ -1,4 +1,4 @@
-"""Консольный запуск получения прямых зависимостей пакета."""
+"""Консольный запуск анализа графа зависимостей пакета."""
 
 # argparse читает параметры запуска, sys нужен для ошибок и кода завершения.
 import argparse
@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 from .config import ConfigError, load_config
-from .packages import RepositoryError, find_package, format_dependency
+from .graph import build_graph, format_graph
+from .packages import RepositoryError, find_package
 from .source import load_repository
 
 
@@ -17,10 +18,10 @@ DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config.csv"
 
 
 def main(argv=None):
-    """Прочитать настройки, получить пакет и показать прямые зависимости."""
+    """Прочитать настройки, построить граф и показать результат анализа."""
     # Путь к CSV можно передать при запуске; иначе берем config.csv проекта.
     parser = argparse.ArgumentParser(
-        description="Вариант 13. Этап 2: прямые зависимости пакета Ubuntu."
+        description="Вариант 13. Этап 3: рекурсивный обход зависимостей."
     )
     parser.add_argument(
         "config", nargs="?", default=DEFAULT_CONFIG, help="Путь к CSV-файлу"
@@ -35,17 +36,16 @@ def main(argv=None):
         package = find_package(
             index, config.package_name, config.package_version
         )
+        # 4. Обходим зависимости с учетом глубины, фильтра и циклов.
+        graph = build_graph(
+            index, package, config.max_depth, config.filter_substring
+        )
     except (ConfigError, RepositoryError, OSError, ValueError) as error:
         # Ошибку показываем пользователю и завершаемся с ненулевым кодом.
         print(f"Ошибка: {error}", file=sys.stderr)
         return FAILURE
-    # 4. Показываем только прямые зависимости найденной версии пакета.
-    print(f"Прямые зависимости {package.name} (версия {package.version}):")
-    if not package.dependencies:
-        print("Нет прямых зависимостей.")
-    # Одна строка соответствует одной группе; внутри могут быть альтернативы.
-    for group in package.dependencies:
-        print("  " + format_dependency(group))
+    # 5. Передаем готовый граф выводу; позднее его получит визуализатор.
+    print("\n".join(format_graph(graph)))
     return SUCCESS
 
 

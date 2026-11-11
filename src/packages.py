@@ -47,6 +47,8 @@ class Package:
     version: str  # Точная версия из поля Version.
     # Например, ((A, B), (C,)) означает: нужен A или B, а также нужен C.
     dependencies: tuple[tuple[Dependency, ...], ...]
+    # Provides перечисляет виртуальные имена, которые заменяет этот пакет.
+    provides: tuple[Dependency, ...] = ()
 
 
 def _add_field(record, line, previous, number):
@@ -120,7 +122,14 @@ def parse_packages(text):
         # Берем обязательные зависимости из обоих полей, без рекомендаций.
         dependencies = parse_dependencies(record.get("Pre-Depends", ""))
         dependencies += parse_dependencies(record.get("Depends", ""))
-        package = Package(record["Package"], record["Version"], dependencies)
+        # Виртуальное имя позволяет найти настоящий пакет-поставщик услуги.
+        provides = tuple(
+            item for group in parse_dependencies(record.get("Provides", ""))
+            for item in group
+        )
+        package = Package(
+            record["Package"], record["Version"], dependencies, provides
+        )
         # Одно имя может иметь несколько версий, поэтому ключ составной.
         key = (package.name, package.version)
         if key in index:

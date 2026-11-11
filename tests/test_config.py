@@ -151,14 +151,15 @@ class ConfigTests(unittest.TestCase):
             load_config(self.path)
 
     def test_cli_success(self):
-        """Успешный запуск показывает пакет и отсутствие зависимостей."""
+        """Пакет без зависимостей образует граф из одного узла."""
         self.write_config()
         output = io.StringIO()
         with redirect_stdout(output):
             result = main([str(self.path)])
         self.assertEqual(result, 0)
-        self.assertIn("Прямые зависимости A (версия 1.0):", output.getvalue())
-        self.assertIn("Нет прямых зависимостей.", output.getvalue())
+        self.assertIn("Граф зависимостей A (версия 1.0):", output.getvalue())
+        self.assertIn("Узлы (1):", output.getvalue())
+        self.assertIn("Связи (0):", output.getvalue())
 
     def test_cli_failure(self):
         """Ошибка выводится в stderr, возвращается ненулевой код."""

@@ -1,0 +1,8 @@
+{
+  "A": {"version": "1.0", "dependencies": ["B", "C"]},
+  "B": {"version": "1.0", "dependencies": ["D"]},
+  "C": {"version": "1.0", "dependencies": ["E"]},
+  "D": {"version": "1.0", "dependencies": ["E"]},
+  "E": {"version": "1.0", "dependencies": ["F"]},
+  "F": {"version": "1.0", "dependencies": []}
+}
