@@ -1,5 +1,6 @@
 """Загрузка Packages стандартной библиотекой без apt и готовых парсеров."""
 
+# Все загрузчики и средства распаковки входят в стандартную библиотеку.
 import bz2
 import gzip
 import io
@@ -14,21 +15,25 @@ from urllib.request import Request, urlopen
 from .packages import Dependency, Package, RepositoryError, parse_packages
 
 
+# Ограничения не дают бесконечно ждать сервер или читать слишком много.
 TIMEOUT_SECONDS = 30
 MAX_DOWNLOAD_BYTES = 32 * 1024 * 1024
 MAX_TEXT_BYTES = 128 * 1024 * 1024
-NOT_FOUND = 404
+NOT_FOUND = 404  # Отсутствующий формат индекса позволяет попробовать другой.
 DOWNLOAD_ERRORS = (OSError, URLError, ValueError, EOFError, lzma.LZMAError)
-TEST_NAME = re.compile(r"[A-Z]+")
+TEST_NAME = re.compile(r"[A-Z]+")  # Учебные пакеты называются A, B, C и т.п.
+# Сначала пробуем сжатые форматы, чтобы уменьшить объем загрузки.
 INDEX_FILES = ("Packages.xz", "Packages.gz", "Packages.bz2", "Packages")
 
 
 def _download(url):
     """Скачать один файл с ограничением времени и размера."""
+    # User-Agent сообщает серверу название обращающейся программы.
     request = Request(
         url, headers={"User-Agent": "apt-dependency-visualizer/2"}
     )
     with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        # Один лишний байт позволяет обнаружить превышение лимита.
         data = response.read(MAX_DOWNLOAD_BYTES + 1)
     if len(data) > MAX_DOWNLOAD_BYTES:
         raise RepositoryError("Каталог слишком большой для загрузки.")
@@ -37,7 +42,9 @@ def _download(url):
 
 def _decode(data):
     """Распаковать gzip/xz/bzip2 по сигнатуре и прочитать UTF-8."""
+    # Представляем скачанные байты как файл в памяти для распаковщика.
     stream = io.BytesIO(data)
+    # Сигнатура: первые байты файла; они надежнее его расширения в URL.
     if data.startswith(b"\xfd7zXZ\x00"):
         stream = lzma.LZMAFile(stream)
     elif data.startswith(b"\x1f\x8b"):
@@ -45,30 +52,38 @@ def _decode(data):
     elif data.startswith(b"BZh"):
         stream = bz2.BZ2File(stream)
     with stream:
+        # Проверяем размер после распаковки, он может сильно увеличиться.
         content = stream.read(MAX_TEXT_BYTES + 1)
     if len(content) > MAX_TEXT_BYTES:
         raise RepositoryError("Распакованный каталог слишком большой.")
-    return content.decode("utf-8-sig")
+    return content.decode("utf-8-sig")  # Парсер дальше получает обычный текст.
 
 
 def _index_urls(repository):
     """Принять точный URL индекса или папку binary-ARCH с индексами."""
+    # Если дан точный файл, не дописываем к его адресу другие имена.
     filename = urlsplit(repository).path.rsplit("/", maxsplit=1)[-1]
     if filename in INDEX_FILES:
         return (repository,)
+    # Для папки строим адреса всех поддерживаемых вариантов Packages.
     return tuple(repository.rstrip("/") + "/" + name for name in INDEX_FILES)
 
 
 def load_remote(repository):
     """Загрузить и разобрать индекс Ubuntu; при 404 попробовать иной формат."""
+    # Проверяем варианты по очереди, пока не получим пригодный каталог.
     for url in _index_urls(repository):
         try:
+            # Скачиваем байты, получаем текст, разбираем записи пакетов.
             return parse_packages(_decode(_download(url)))
         except HTTPError as error:
+            # Только отсутствие файла разрешает переход к следующему формату.
             if error.code != NOT_FOUND:
                 raise RepositoryError(f"Сервер вернул HTTP {error.code}.")
         except DOWNLOAD_ERRORS as error:
+            # Сбой сети или повреждение данных сообщаем вместо пустого списка.
             raise RepositoryError(f"Не удалось прочитать каталог: {error}")
+    # До этой строки дошли, если сервер не нашел ни один выбранный индекс.
     raise RepositoryError(
         "Каталог Packages не найден. Укажите URL Packages.xz или папки "
         "dists/ВЫПУСК/КОМПОНЕНТ/binary-АРХИТЕКТУРА/."
@@ -77,17 +92,20 @@ def load_remote(repository):
 
 def _test_package(name, record):
     """Проверить одну запись учебного JSON и создать пакет."""
+    # Проверяем устройство записи, прежде чем обращаться к ее полям.
     if not TEST_NAME.fullmatch(name) or not isinstance(record, dict):
         raise RepositoryError("JSON: нужны имена A, B, C и записи-объекты.")
     version = record.get("version")
     if not isinstance(version, str) or not version.strip():
         raise RepositoryError(f"JSON: у пакета {name} нужна строка version.")
+    # Приводим учебные данные к той же модели, что используется для Ubuntu.
     groups = _test_dependencies(name, record.get("dependencies"))
     return Package(name, version, groups)
 
 
 def _test_dependencies(name, dependencies):
     """Проверить список учебных зависимостей и убрать повторения имен."""
+    # Сначала проверяем тип списка, затем тип и написание каждого имени.
     if not isinstance(dependencies, list):
         raise RepositoryError(
             f"JSON: у пакета {name} нужен список dependencies."
@@ -96,23 +114,28 @@ def _test_dependencies(name, dependencies):
         raise RepositoryError("JSON: имена зависимостей должны быть строками.")
     if not all(TEST_NAME.fullmatch(dep) for dep in dependencies):
         raise RepositoryError("JSON: имена зависимостей: большие буквы A-Z.")
+    # В JSON нет альтернатив: каждое имя образует отдельную обязательную группу.
+    # dict.fromkeys убирает повторы, сохраняя исходный порядок имен.
     return tuple((Dependency(dep),) for dep in dict.fromkeys(dependencies))
 
 
 def load_test(filename):
     """Прочитать учебный граф из JSON, не обходя его зависимости."""
     try:
+        # JSON переводит текст файла в словарь Python с записями пакетов.
         data = json.loads(Path(filename).read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, ValueError) as error:
         raise RepositoryError(f"Не удалось прочитать учебный JSON: {error}")
     if not isinstance(data, dict) or not data:
         raise RepositoryError("JSON: нужен непустой объект с пакетами.")
+    # Проверяем каждую запись и строим такой же индекс, как у сетевого каталога.
     packages = [_test_package(name, record) for name, record in data.items()]
     return {(package.name, package.version): package for package in packages}
 
 
 def load_repository(config, config_path):
     """Выбрать учебный файл или сетевой индекс по настройке test_mode."""
+    # Выбор источника скрыт здесь, поэтому остальному коду режим не важен.
     if not config.test_mode:
         return load_remote(config.repository)
     # Как и при проверке, отсчитываем путь от расположения CSV.
