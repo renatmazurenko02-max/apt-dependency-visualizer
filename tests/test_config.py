@@ -15,8 +15,10 @@ class ConfigTests(unittest.TestCase):
     """Изолированные сценарии чтения пользовательских настроек."""
 
     def prepare(self):
-        """Создать отдельную папку и минимальные входные файлы."""
-        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
+        """Подготовить изолированные временные данные для одного теста.
+
+        Каждый тест вызывает prepare явно; addCleanup удаляет временные файлы.
+        """
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

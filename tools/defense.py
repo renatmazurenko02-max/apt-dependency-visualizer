@@ -1,4 +1,8 @@
-"""Последовательно показать работу всех этапов одной командой."""
+"""Последовательно показать работу всех этапов одной командой.
+
+FORWARD_CASES и REVERSE_CASES задают учебные примеры. Для них
+вызывается тот же код анализа, что и при обычном запуске проекта.
+"""
 
 import argparse
 import csv
@@ -22,7 +26,6 @@ from src.visualize import export_graph, plantuml_source, show_image
 from .demo import CONFIGS, INDEX_NAME, ROOT, WORK, catalog
 
 
-# В каждом примере вызывается тот же код, что в обычном запуске программы.
 FORWARD_CASES = (
     ("Обычный DFS и косвенные зависимости", "config.csv"),
     ("Ограничение глубины: один переход", "config-depth.csv"),
@@ -78,9 +81,12 @@ def setting_text(value):
 
 
 def invalid_examples(config, directory=None):
-    """Получить ошибки семи настроек без изменения рабочего CSV."""
+    """Выдать ошибки семи настроек на временных копиях CSV.
+
+    Рабочий CSV сохранить неизменным. Путь к JSON сделать абсолютным,
+    поскольку временный файл находится в другой папке.
+    """
     values = {key: setting_text(value) for key, value in asdict(config).items()}
-    # Временный CSV лежит в другой папке, поэтому нужен полный путь к JSON.
     values["repository"] = str(ROOT / "examples/repository.json")
     with tempfile.TemporaryDirectory(
         dir=directory, prefix="config-check-"
@@ -104,10 +110,13 @@ class Presentation:
     """Управлять порядком показа, используя готовые функции проекта."""
 
     def __init__(self, args):
-        """Настроить паузы и папку результатов текущего показа."""
+        """Настроить паузы, папку вывода и начальное состояние показа.
+
+        index и checksum заполняются после свежей загрузки второго этапа.
+        """
         self.args = args
         self.output = Path(args.output).resolve()
-        self.index = None  # Реальные данные появятся после свежей загрузки.
+        self.index = None
         self.checksum = None
 
     def pause(self):
@@ -132,11 +141,14 @@ class Presentation:
         self.pause()
 
     def stage2(self):
-        """Обязательно скачать новый каталог и показать прямые зависимости."""
+        """Заново скачать каталог и показать прямые зависимости пакета.
+
+        Свежая загрузка обязательна даже при наличии локальной копии.
+        Сохранить индекс и SHA-256 для следующих этапов и сверки отчета.
+        """
         print("\nЭТАП 2. Свежая загрузка из репозитория Ubuntu")
         config = load_config(ROOT / CONFIGS[0])
         print("URL: " + config.repository, flush=True)
-        # Свежая загрузка обязательна при каждом показе, даже при наличии копии.
         text = _decode(_download(config.repository))
         filename = WORK / "lists" / INDEX_NAME
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -285,14 +297,18 @@ def arguments(argv):
 
 
 def record_error(filename, error):
-    """Показать реальную ошибку и при возможности добавить ее в протокол."""
+    """Вывести ошибку в stderr и добавить ее в протокол при возможности.
+
+    Если запись протокола недоступна, сохранить исходное сообщение
+    в терминале и не заменять его дополнительной ошибкой записи.
+    """
     message = "Ошибка демонстрации: " + str(error)
     print(message, file=sys.stderr)
     try:
         with filename.open("a", encoding="utf-8") as stream:
             stream.write(message + "\n")
     except OSError:
-        pass  # Сообщение уже показано, даже если файл протокола недоступен.
+        pass
 
 
 def main(argv=None):

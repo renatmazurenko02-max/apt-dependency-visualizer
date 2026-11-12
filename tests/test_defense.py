@@ -18,8 +18,10 @@ class DefenseTests(unittest.TestCase):
     """Проверить реальные ошибки настроек, сетевую зависимость и протокол."""
 
     def prepare(self):
-        """Изолировать записи и отключить окна, паузы и вложенные тесты."""
-        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
+        """Подготовить изолированные временные данные для одного теста.
+
+        Каждый тест вызывает prepare явно; addCleanup удаляет временные файлы.
+        """
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.folder = Path(self.temp.name)

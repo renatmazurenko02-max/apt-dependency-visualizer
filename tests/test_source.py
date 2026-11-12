@@ -89,8 +89,10 @@ class TestRepositoryTests(unittest.TestCase):
     """Учебный JSON позволяет пользоваться программой без сети."""
 
     def prepare(self):
-        """Подготовить отдельный временный файл."""
-        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
+        """Подготовить изолированные временные данные для одного теста.
+
+        Каждый тест вызывает prepare явно; addCleanup удаляет временные файлы.
+        """
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.filename = Path(self.temp.name) / "repository.json"

@@ -9,12 +9,15 @@ from .demo import ROOT, prepare
 
 
 def native(work):
-    """Временный контейнер видит только папку сравнения, без всего проекта."""
+    """Выполнить штатную проверку во временном контейнере Ubuntu.
+
+    Подключить только папку сравнения. Флаг --rm удаляет контейнер
+    после завершения; устанавливаемое ПО остается внутри контейнера.
+    """
     if shutil.which("docker") is None:
         raise RuntimeError("Для сравнения нужен запущенный Docker Desktop.")
     for filename in ("native_apt.py", "native_compare.sh"):
         shutil.copyfile(ROOT / "tools" / filename, work / filename)
-    # --rm удаляет контейнер; установленное ПО не попадает в Windows.
     command = [
         "docker", "run", "--rm", "--mount",
         f"type=bind,source={work},target=/work", "ubuntu:24.04",

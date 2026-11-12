@@ -1,4 +1,7 @@
-"""Рекурсивный DFS с ограничением глубины, фильтром и защитой от циклов."""
+"""Рекурсивный DFS с глубиной, фильтром и защитой от циклов.
+
+NodeKey хранит пару (имя, версия), различая версии одного пакета.
+"""
 
 from dataclasses import dataclass, field
 from typing import TypeAlias
@@ -7,55 +10,72 @@ from .packages import Package, RepositoryError
 from .resolver import Resolver
 
 
-# Одно имя может иметь разные версии, поэтому узел задаем парой значений.
 NodeKey: TypeAlias = tuple[str, str]
 
 
 @dataclass(frozen=True)
 class Edge:
-    """Направленная связь обхода; ее смысл зависит от режима графа."""
+    """Направленная связь обхода между узлами source и target.
+
+    requirement хранит исходное условие версии или виртуальное имя.
+    group хранит полную группу альтернатив для подписи связи.
+    В обратном режиме target зависит от source.
+    """
 
     source: NodeKey
     target: NodeKey
-    requirement: str  # Условие версии или виртуальное имя из каталога.
-    group: str  # Альтернативы сохраняются, чтобы не исказить их смысл.
+    requirement: str
+    group: str
 
 
 @dataclass
 class DependencyGraph:
-    """Результат анализа, который позднее будет передан визуализатору."""
+    """Результат анализа для текстового вывода и визуализации.
+
+    root задает исходный узел; nodes и edges хранят пакеты и связи.
+    depths содержит минимальные найденные глубины узлов.
+    cycle_edges отмечает переходы к узлам текущего рекурсивного пути.
+    При reverse=True стрелка ведет от зависимости к потребителю.
+    """
 
     root: NodeKey
     nodes: dict[NodeKey, Package] = field(default_factory=dict)
     edges: list[Edge] = field(default_factory=list)
     depths: dict[NodeKey, int] = field(default_factory=dict)
-    # Здесь отмечаются переходы назад к пакету текущего рекурсивного пути.
     cycle_edges: set[tuple[NodeKey, NodeKey]] = field(default_factory=set)
-    reverse: bool = False  # В обратном режиме цель зависит от источника.
+    reverse: bool = False
 
 
 class GraphBuilder:
     """Хранить состояние одного обхода, не меняя сами записи каталога."""
 
     def __init__(self, index, root, max_depth, excluded, resolver=None):
-        """Подготовить результат и отдельные наборы для контроля обхода."""
+        """Подготовить результат и состояние одного обхода DFS.
+
+        resolver задает прямые или обратные переходы. active хранит узлы
+        текущего пути, expanded_depth хранит глубины прежнего раскрытия,
+        known_edges защищает список связей от повторов.
+        """
         self.graph = DependencyGraph((root.name, root.version))
-        # Другой источник переходов позволяет повторно использовать тот же DFS.
         self.resolver = resolver if resolver is not None else Resolver(
             index, excluded
         )
         self.max_depth = max_depth
-        self.active = set()  # Только пакеты текущего рекурсивного пути.
-        self.expanded_depth = {}  # На какой глубине раскрывали каждый пакет.
-        self.known_edges = set()  # Общие зависимости не дублируют связи.
+        self.active = set()
+        self.expanded_depth = {}
+        self.known_edges = set()
 
     def visit(self, package, depth):
-        """Обойти пакет; рекурсивный вызов для его зависимостей в connect."""
+        """Посетить пакет и раскрыть его зависимости через connect.
+
+        Сохранить минимальную глубину. Остановиться на фильтре, пределе
+        глубины или цикле; при новом более коротком пути раскрыть узел
+        снова. После обработки удалить узел из текущего пути active.
+        """
         if self.resolver.is_excluded(package.name):
             return
         key = (package.name, package.version)
         self.graph.nodes[key] = package
-        # Один пакет может быть достигнут разными путями, берем кратчайший.
         previous = self.graph.depths.get(key, depth)
         self.graph.depths[key] = min(previous, depth)
         if depth >= self.max_depth or key in self.active:
@@ -63,7 +83,6 @@ class GraphBuilder:
         expanded = self.expanded_depth.get(key)
         if expanded is not None and expanded <= depth:
             return
-        # Более короткий новый путь позволяет раскрыть еще часть зависимостей.
         self.expanded_depth[key] = depth
         self.active.add(key)
         try:
@@ -73,14 +92,17 @@ class GraphBuilder:
             self.active.remove(key)
 
     def connect(self, source, resolved, depth):
-        """Сохранить связь и рекурсивно перейти к пакету следующего уровня."""
+        """Сохранить связь и рекурсивно посетить следующий пакет.
+
+        Замыкающую цикл связь сохранить и пометить. Проверка active
+        в visit остановит повторное углубление по этой связи.
+        """
         package = resolved.package
         target = (package.name, package.version)
         edge = Edge(source, target, resolved.requirement, resolved.group)
         if edge not in self.known_edges:
             self.graph.edges.append(edge)
             self.known_edges.add(edge)
-        # Связь цикла остается в графе, повторное углубление будет остановлено.
         if target in self.active:
             self.graph.cycle_edges.add((source, target))
         self.visit(package, depth + 1)
@@ -101,11 +123,14 @@ def build_graph(index, root, max_depth, excluded="", resolver=None):
 
 
 def _edge_text(edge, graph):
-    """Показать связь, исходное условие и отметку замыкания цикла."""
+    """Вернуть текст связи с условием версии и отметкой цикла.
+
+    При обратном поиске условие по-прежнему относится к зависимости,
+    поэтому ее имя берется из source, а при прямом поиске из target.
+    """
     source = "@".join(edge.source)
     target = "@".join(edge.target)
     text = f"  {source} -> {target}"
-    # Исходное условие относится к зависимости, даже если стрелка развернута.
     dependency_name = edge.source[0] if graph.reverse else edge.target[0]
     if edge.requirement != dependency_name:
         text += " [" + edge.requirement + "]"
@@ -117,7 +142,11 @@ def _edge_text(edge, graph):
 
 
 def format_graph(graph):
-    """Получить список строк для демонстрации графа в терминале."""
+    """Вернуть заголовок, список узлов и список связей графа.
+
+    Порядок словаря nodes сохраняет порядок первого посещения в DFS.
+    Для исключенного корня вернуть пояснение о пустом графе.
+    """
     title = "Обратные зависимости" if graph.reverse else "Граф зависимостей"
     lines = [f"{title} {graph.root[0]} (версия {graph.root[1]}):"]
     if graph.reverse:
@@ -125,7 +154,6 @@ def format_graph(graph):
     if not graph.nodes:
         return lines + ["Исходный пакет исключен фильтром."]
     lines.append(f"Узлы ({len(graph.nodes)}):")
-    # Порядок словаря сохраняет порядок первого посещения узлов DFS.
     for key in graph.nodes:
         lines.append(f"  {'@'.join(key)}, глубина {graph.depths[key]}")
     lines.append(f"Связи ({len(graph.edges)}):")

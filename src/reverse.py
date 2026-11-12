@@ -9,8 +9,11 @@ class ReverseResolver(Resolver):
     """Для каждого пакета подготовить список тех, кто его требует."""
 
     def __init__(self, index, excluded=""):
-        """Просмотреть весь каталог, чтобы не потерять другие ветки."""
-        # Наследуем поиск версий, виртуальных имен и проверку фильтра.
+        """Подготовить обратные переходы по всему каталогу пакетов.
+
+        Унаследовать поиск версий, виртуальных имен и проверку фильтра.
+        Учесть всех допустимых потребителей, включая другие ветки графа.
+        """
         super().__init__(index, excluded)
         self.incoming = {}
         for package in index.values():
@@ -18,33 +21,40 @@ class ReverseResolver(Resolver):
                 self._record(package)
 
     def _record(self, parent):
-        """Для каждой связи parent -> dependency записать обратный переход."""
+        """Записать переходы от зависимостей к их потребителю parent.
+
+        Учесть все совместимые версии и отфильтровать исключенные имена.
+        Исходные требования сохранить для подписей обратных связей.
+        """
         for group in parent.dependencies:
             label = format_dependency(group)
             for dependency in group:
                 if self.is_excluded(dependency.name):
                     continue
-                # Любая совместимая версия может иметь обратные зависимости.
                 for target in self.matching(dependency):
                     if self.is_excluded(target.name):
                         continue
                     key = (target.name, target.version)
-                    # Из зависимости переходим к пакету, которому она нужна.
                     self.incoming.setdefault(key, []).append(
                         Resolved(parent, str(dependency), label)
                     )
 
     def dependencies(self, package):
-        """Вернуть обратные переходы в интерфейсе, знакомом нашему DFS."""
+        """Выдать потребителей пакета в интерфейсе обычного DFS.
+
+        Если входящих связей нет, генератор не выдает ни одного перехода.
+        """
         key = (package.name, package.version)
-        # Нет входящих связей: этот пакет никто не требует в данном каталоге.
         yield from self.incoming.get(key, ())
 
 
 def build_reverse_graph(index, root, max_depth, excluded=""):
-    """Развернуть переходы и применить алгоритм обхода предыдущего этапа."""
+    """Подготовить обратные переходы и вернуть построенный граф.
+
+    Общий build_graph обрабатывает глубину, циклы и повторный обход
+    по более короткому пути. reverse=True задает смысл стрелок.
+    """
     resolver = ReverseResolver(index, excluded)
-    # Глубина, циклы и повторные короткие пути обрабатываются тем же DFS.
     graph = build_graph(index, root, max_depth, excluded, resolver)
     graph.reverse = True
     return graph

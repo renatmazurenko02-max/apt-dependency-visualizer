@@ -62,8 +62,10 @@ class ExportTests(unittest.TestCase):
     """Текст диаграммы и экспорт сохраняют данные графа."""
 
     def prepare(self):
-        """Подготовить небольшой граф и настройки без сетевого источника."""
-        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
+        """Подготовить изолированные временные данные для одного теста.
+
+        Каждый тест вызывает prepare явно; addCleanup удаляет временные файлы.
+        """
         self.graph = example_graph({"A": ["B"], "B": []})
         self.config = Config("A", "unused.json", True, "1.0", True, 3, "")
         self.temp = tempfile.TemporaryDirectory()

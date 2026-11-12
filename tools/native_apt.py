@@ -73,7 +73,11 @@ def cut_graph(adjacent, root, max_depth):
 
 
 def collect(work):
-    """Получить native DOT/PNG и независимые списки узлов и связей."""
+    """Сохранить штатные DOT/PNG и независимые списки узлов и связей.
+
+    Сначала проверить наличие запрошенной версии через apt-cache show.
+    Сохранить вывод depends и ограничить его глубину независимым BFS.
+    """
     work = Path(work)
     output = work / "native"
     output.mkdir(exist_ok=True)
@@ -83,7 +87,6 @@ def collect(work):
     requests = json.loads((work / "request.json").read_text(encoding="utf-8"))
     for item in requests["packages"]:
         name = item["name"]
-        # Проверяем точную версию и сохраняем исходный вывод штатного средства.
         apt(work, "show", name + "=" + item["version"])
         text = apt(work, "--important", "--recurse", "depends", name)
         (output / (name + ".depends.txt")).write_text(text, encoding="utf-8")

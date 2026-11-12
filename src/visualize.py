@@ -31,12 +31,15 @@ def _escape(text):
 
 
 def _label(edge, graph):
-    """Показать условия версии и альтернативы на соответствующей связи."""
+    """Вернуть подпись условия версии или группы альтернатив.
+
+    Для совпадающего простого имени подпись не нужна. Длинный текст
+    разбить на строки шириной 36 символов для читаемой диаграммы.
+    """
     name = edge.source[0] if graph.reverse else edge.target[0]
     text = edge.group if "|" in edge.group else edge.requirement
     if text == name:
         return ""
-    # Переносы удерживают длинные условия в пределах читаемой подписи.
     return "\n".join(textwrap.wrap(text, width=36))
 
 
@@ -97,10 +100,14 @@ def graph_data(graph):
 
 
 def export_graph(graph, config, output, image=True, jar=None):
-    """Создать текстовые файлы и при необходимости локальное изображение."""
+    """Сохранить граф в файлы и вернуть пути в объекте Artifacts.
+
+    Всегда создать PlantUML и JSON, по настройкам создать дерево и PNG.
+    Заменить недопустимые символы имени файла, включая двоеточие эпохи,
+    чтобы результат сохранялся и в Windows.
+    """
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    # В версии бывает двоеточие, которое недопустимо в имени файла Windows.
     stem = re.sub(r"[^A-Za-z0-9_.-]", "_", "-".join(graph.root))
     if graph.reverse:
         stem += "-reverse"

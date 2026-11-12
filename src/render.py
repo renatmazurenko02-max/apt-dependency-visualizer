@@ -1,4 +1,8 @@
-"""Локальный запуск PlantUML исключительно для рисования готового графа."""
+"""Локальный запуск PlantUML для рисования готового графа.
+
+JAR_SHA256 содержит контрольную сумму официального файла из
+метаданных релиза GitHub; она проверяет загружаемый инструмент.
+"""
 
 import hashlib
 import shutil
@@ -13,7 +17,6 @@ JAR_URL = (
     f"https://github.com/plantuml/plantuml/releases/download/v{VERSION}/"
     + JAR_NAME
 )
-# Контрольная сумма официального файла из метаданных релиза GitHub.
 JAR_SHA256 = "e9bc9e6b2eb715e8c0c929f3dcb5fc1923be13f37599b09c293c66d354e88686"
 MAX_JAR_BYTES = 64 * 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -25,7 +28,12 @@ class RenderError(ValueError):
 
 
 def ensure_jar(filename=None):
-    """Один раз скачать PlantUML либо использовать явно указанный JAR."""
+    """Вернуть путь к указанному JAR или проверенной копии PlantUML.
+
+    Официальную копию хранить в generated/tools, исключенной из Git.
+    Если ее нет или контрольная сумма неверна, скачать файл заново
+    и проверить размер и SHA-256 перед сохранением.
+    """
     path = Path(filename) if filename else ROOT / "generated/tools" / JAR_NAME
     if filename:
         if not path.is_file():
@@ -34,7 +42,6 @@ def ensure_jar(filename=None):
     if path.is_file():
         if hashlib.sha256(path.read_bytes()).hexdigest() == JAR_SHA256:
             return path
-    # Бинарный инструмент хранится только в папке, исключенной из Git.
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         request = Request(

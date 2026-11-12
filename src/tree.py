@@ -15,14 +15,17 @@ class TreeFormatter:
             self.children.setdefault(edge.source, []).append(edge)
 
     def branch(self, key, prefix, connector, depth, active):
-        """Добавить строку и при необходимости раскрыть следующую ветку."""
+        """Добавить строку дерева и при необходимости раскрыть ветку.
+
+        active хранит отдельный путь: повтор в нем является циклом,
+        а общая зависимость разных веток сама по себе циклом не считается.
+        """
         label = "@".join(key)
         suffix = self._stop_reason(key, depth, active)
         self.lines.append(prefix + connector + label + suffix)
         if suffix:
             return
         self.expanded[key] = depth
-        # Отдельный путь отличает цикл от общей зависимости разных веток.
         active = active | {key}
         children = self.children.get(key, [])
         for number, edge in enumerate(children):

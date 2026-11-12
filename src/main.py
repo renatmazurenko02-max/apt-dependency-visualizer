@@ -1,6 +1,11 @@
-"""Консольный запуск анализа графа зависимостей пакета."""
+"""Консольный запуск анализа зависимостей пакета Ubuntu.
 
-# argparse читает параметры запуска, sys нужен для ошибок и кода завершения.
+argparse разбирает команду, sys передает ошибки и код завершения.
+SUCCESS=0 означает успех, FAILURE=1 означает ошибку.
+По умолчанию CSV и папка generated расположены в корне проекта.
+При запуске модуля SystemExit передает результат main терминалу.
+"""
+
 import argparse
 import sys
 from pathlib import Path
@@ -14,9 +19,8 @@ from .tree import format_tree
 from .visualize import export_graph, show_image
 
 
-SUCCESS = 0  # Терминал считает ноль признаком успешного завершения.
-FAILURE = 1  # Ненулевой код сообщает об ошибке.
-# Стандартный CSV ищем рядом с проектом независимо от папки запуска.
+SUCCESS = 0
+FAILURE = 1
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config.csv"
 DEFAULT_OUTPUT = DEFAULT_CONFIG.parent / "generated"
 
@@ -28,8 +32,11 @@ def _analyze(index, package, config, reverse):
 
 
 def _arguments(argv):
-    """Прочитать путь к CSV и выбрать режим вывода результата."""
-    # Путь к CSV можно передать при запуске; иначе берем config.csv проекта.
+    """Разобрать путь к CSV и параметры запуска в объект args.
+
+    Если путь не указан, использовать config.csv из корня проекта.
+    Флаги выбирают направление, подробность вывода и создание PNG.
+    """
     parser = argparse.ArgumentParser(
         description="Вариант 13. Визуализация зависимостей пакетов Ubuntu."
     )
@@ -74,38 +81,40 @@ def _report(graph, config, artifacts, details):
 
 
 def _execute(args):
-    """Соединить настройки, получение данных, DFS и визуализацию."""
-    # 1. Получаем проверенные настройки и каталог пакетов.
+    """Выполнить анализ и вернуть код успешного завершения.
+
+    Прочитать настройки и каталог, найти точную версию пакета,
+    построить граф и передать готовые связи визуализатору.
+    Затем вывести отчет и открыть PNG, если это разрешено флагами.
+    """
     config = load_config(args.config)
     index = load_repository(config, args.config)
-    # 2. Выбираем точную версию корневого пакета.
     package = find_package(index, config.package_name, config.package_version)
-    # 3. Строим граф в выбранном направлении.
     graph = _analyze(index, package, config, args.reverse)
-    # 4. Передаем готовый результат визуализатору, не вычисляя связи заново.
     if not args.no_image:
         print("Создание изображения PlantUML...")
     artifacts = export_graph(
         graph, config, args.output, not args.no_image, args.plantuml_jar
     )
     _report(graph, config, artifacts, args.details)
-    # Пользовательский запуск открывает рисунок стандартной программой.
     if artifacts.image and not args.no_open:
         show_image(artifacts.image)
     return SUCCESS
 
 
 def main(argv=None):
-    """Запустить работу и превратить ожидаемые ошибки в понятное сообщение."""
+    """Разобрать команду, запустить анализ и вернуть код завершения.
+
+    Ожидаемые ошибки вывести в stderr и вернуть FAILURE.
+    При успешном выполнении вернуть код из _execute.
+    """
     args = _arguments(argv)
     try:
         return _execute(args)
     except (ConfigError, RepositoryError, OSError, ValueError) as error:
-        # Ошибку показываем пользователю и завершаемся с ненулевым кодом.
         print(f"Ошибка: {error}", file=sys.stderr)
         return FAILURE
 
 
 if __name__ == "__main__":
-    # При запуске модуля передаем терминалу код, возвращенный функцией main.
     raise SystemExit(main())

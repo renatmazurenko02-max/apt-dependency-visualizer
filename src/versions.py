@@ -1,4 +1,8 @@
-"""Собственное сравнение версий Debian/Ubuntu без вызова dpkg или apt."""
+"""Собственное сравнение версий Debian/Ubuntu без dpkg или apt.
+
+PARTS выделяет чередующиеся текстовые и числовые участки.
+SYMBOL_OFFSET ставит остальные знаки после букв при сравнении.
+"""
 
 import re
 from itertools import zip_longest
@@ -6,9 +10,8 @@ from itertools import zip_longest
 from .packages import RepositoryError
 
 
-# Чередуем текстовые и числовые части; числа сравниваются по значению.
 PARTS = re.compile(r"([^0-9]*)([0-9]*)")
-SYMBOL_OFFSET = 256  # Знаки после букв в порядке сравнения Debian.
+SYMBOL_OFFSET = 256
 
 
 def _sign(value):
@@ -17,10 +20,13 @@ def _sign(value):
 
 
 def _number(left, right):
-    """Сравнить числовые записи без переполнения и влияния ведущих нулей."""
+    """Сравнить числовые записи, вернув -1, 0 или 1.
+
+    Удалить ведущие нули, сравнить длины, затем цифры при равной длине.
+    Преобразование в int не требуется даже для очень длинных записей.
+    """
     left = left.lstrip("0")
     right = right.lstrip("0")
-    # Сначала длина, а при равной длине обычный порядок цифр.
     if len(left) != len(right):
         return _sign(len(left) - len(right))
     return (left > right) - (left < right)
@@ -38,8 +44,11 @@ def _order(char):
 
 
 def _letters(left, right):
-    """Сравнить текстовые части с особыми правилами для ~ и знаков."""
-    # Недостающий символ заменяем концом текста, у которого свой порядок.
+    """Сравнить текстовые части с особыми правилами для тильды и знаков.
+
+    Недостающий символ заменить пустой строкой, обозначающей конец.
+    Порядок каждого символа определяет функция _order.
+    """
     for first, second in zip_longest(left, right, fillvalue=""):
         difference = _order(first) - _order(second)
         if difference:
@@ -74,10 +83,13 @@ def _split(version):
 
 
 def compare_versions(left, right):
-    """Сравнить полные версии; например, 1.10 новее 1.9, а 1~rc старее 1."""
+    """Сравнить полные версии и вернуть -1, 0 или 1.
+
+    Сначала сравнить эпоху, затем основную часть, затем ревизию.
+    Например, 1.10 новее 1.9, а 1~rc старее 1.
+    """
     first = _split(left)
     second = _split(right)
-    # Эпоха важнее основной части, основная часть важнее ревизии.
     return (
         _number(first[0], second[0])
         or _part(first[1], second[1])
@@ -86,11 +98,14 @@ def compare_versions(left, right):
 
 
 def satisfies(version, dependency):
-    """Проверить, удовлетворяет ли версия условию одной зависимости."""
+    """Проверить соответствие версии условию одной зависимости.
+
+    Без оператора подходит любая версия. Допустимость оператора
+    заранее проверяет парсер зависимости.
+    """
     if not dependency.relation:
         return True
     result = compare_versions(version, dependency.version)
-    # Операторы уже проверены парсером записи зависимости.
     return {
         "<<": result < 0, "<=": result <= 0, "=": result == 0,
         ">=": result >= 0, ">>": result > 0,
