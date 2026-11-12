@@ -61,8 +61,9 @@ class TreeTests(unittest.TestCase):
 class ExportTests(unittest.TestCase):
     """Текст диаграммы и экспорт сохраняют данные графа."""
 
-    def setUp(self):
+    def prepare(self):
         """Подготовить небольшой граф и настройки без сетевого источника."""
+        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
         self.graph = example_graph({"A": ["B"], "B": []})
         self.config = Config("A", "unused.json", True, "1.0", True, 3, "")
         self.temp = tempfile.TemporaryDirectory()
@@ -71,6 +72,7 @@ class ExportTests(unittest.TestCase):
 
     def test_source_contains_all_nodes_and_edges(self):
         """Визуализатор получает ровно готовые узлы и направленные связи."""
+        self.prepare()
         text = plantuml_source(self.graph)
         self.assertIn('rectangle "A\\n1.0" as n0', text)
         self.assertIn('rectangle "B\\n1.0" as n1', text)
@@ -79,11 +81,13 @@ class ExportTests(unittest.TestCase):
 
     def test_cycle_color(self):
         """Замыкание цикла отличается от обычной связи цветом и штрихами."""
+        self.prepare()
         graph = example_graph({"A": ["B"], "B": ["A"]})
         self.assertIn("-[#C2413B,dashed]->", plantuml_source(graph))
 
     def test_virtual_provider_style(self):
         """Виртуальный поставщик визуально отличается от обычного требования."""
+        self.prepare()
         index = parse_packages(
             "Package: app\nVersion: 1\nDepends: virtual-api\n\n"
             "Package: provider\nVersion: 1\nProvides: virtual-api\n"
@@ -93,6 +97,7 @@ class ExportTests(unittest.TestCase):
 
     def test_text_export_without_java(self):
         """Офлайн-режим создает источник, данные и дерево без Java."""
+        self.prepare()
         with patch("src.visualize.render_png") as render:
             files = export_graph(self.graph, self.config, self.folder, False)
         render.assert_not_called()
@@ -105,6 +110,7 @@ class ExportTests(unittest.TestCase):
 
     def test_disabled_tree(self):
         """Настройка false отключает создание дерева."""
+        self.prepare()
         config = replace(self.config, ascii_tree=False)
         files = export_graph(self.graph, config, self.folder, False)
         self.assertIsNone(files.tree)
@@ -112,6 +118,7 @@ class ExportTests(unittest.TestCase):
 
     def test_safe_filename_for_epoch(self):
         """Двоеточие эпохи не превращается в недопустимое имя Windows."""
+        self.prepare()
         root = Package("A", "1:1.0", ())
         graph = build_graph({("A", "1:1.0"): root}, root, 0)
         files = export_graph(graph, self.config, self.folder, False)
@@ -119,6 +126,7 @@ class ExportTests(unittest.TestCase):
 
     def test_labels_cannot_break_source_lines(self):
         """Кавычки и переводы строк в метке остаются текстом метки."""
+        self.prepare()
         root = Package('A"\n@enduml', "1.0", ())
         graph = build_graph({(root.name, root.version): root}, root, 0)
         text = plantuml_source(graph)

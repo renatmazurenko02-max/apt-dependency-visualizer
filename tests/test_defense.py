@@ -17,8 +17,9 @@ from tools.defense import (
 class DefenseTests(unittest.TestCase):
     """Проверить реальные ошибки настроек, сетевую зависимость и протокол."""
 
-    def setUp(self):
+    def prepare(self):
         """Изолировать записи и отключить окна, паузы и вложенные тесты."""
+        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.folder = Path(self.temp.name)
@@ -29,6 +30,7 @@ class DefenseTests(unittest.TestCase):
 
     def test_errors_cover_all_settings_without_modification(self):
         """Каждая ошибка относится к своему параметру, рабочий CSV сохранен."""
+        self.prepare()
         filename = ROOT / "config.csv"
         before = filename.read_bytes()
         examples = list(invalid_examples(load_config(filename)))
@@ -39,6 +41,7 @@ class DefenseTests(unittest.TestCase):
 
     def test_fresh_download_even_with_cache(self):
         """Существующий каталог не отменяет сетевой запрос второго этапа."""
+        self.prepare()
         filename = self.folder / "lists" / INDEX_NAME
         filename.parent.mkdir()
         filename.write_text("OLD", encoding="utf-8")
@@ -58,6 +61,7 @@ class DefenseTests(unittest.TestCase):
 
     def test_network_error_does_not_use_cache(self):
         """Сбой сети останавливает показ без подмены данных старой копией."""
+        self.prepare()
         filename = self.folder / "lists" / INDEX_NAME
         filename.parent.mkdir()
         filename.write_text("OLD", encoding="utf-8")
@@ -74,6 +78,7 @@ class DefenseTests(unittest.TestCase):
 
     def test_pause_allows_quit(self):
         """На паузе можно закончить показ без технической ошибки."""
+        self.prepare()
         args = arguments(["--output", str(self.folder)])
         with patch("builtins.input", return_value="q"):
             with redirect_stdout(io.StringIO()):
@@ -82,6 +87,7 @@ class DefenseTests(unittest.TestCase):
 
     def test_transcript(self):
         """Протокол содержит тот же фактический вывод, что и терминал."""
+        self.prepare()
         output = io.StringIO()
         with patch(
             "tools.defense.Presentation.run", side_effect=lambda: print("OK")
@@ -95,6 +101,7 @@ class DefenseTests(unittest.TestCase):
 
     def test_errors_are_recorded(self):
         """Ошибка сети отражается в коде завершения и в протоколе."""
+        self.prepare()
         with patch(
             "tools.defense.Presentation.run", side_effect=OSError("offline")
         ):

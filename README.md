@@ -394,8 +394,8 @@ python -m tools.compare_apt
 | `resolver` | `is_excluded`, `matching`: фильтр и все совместимые версии |
 | `resolver` | `_candidates`, `_newest`: выбор версий для прямого обхода |
 | `resolver` | `resolve_group`, `dependencies`: варианты переходов по графу |
-| `graph` | `build_graph`, `_Builder.visit`, `connect`: рекурсивный DFS |
-| `graph` | `_Builder.__init__`: отдельное состояние одного обхода |
+| `graph` | `build_graph`, `GraphBuilder.visit`, `connect`: рекурсивный DFS |
+| `graph` | `GraphBuilder.__init__`: отдельное состояние одного обхода |
 | `graph` | `format_graph`, `_edge_text`: списки узлов и связей |
 | `reverse` | `ReverseResolver.__init__`, `_record`: обратная таблица каталога |
 | `reverse` | `dependencies`: переходы к пакетам-потребителям |
@@ -403,8 +403,8 @@ python -m tools.compare_apt
 | `main` | `_analyze`: выбор прямого или обратного построения |
 | `main` | `main`: аргументы запуска, общая последовательность и вывод |
 | `main` | `_arguments`, `_execute`, `_report`: запуск и представление результата |
-| `tree` | `format_tree`, `_Tree.branch`, `_stop_reason`: дерево с повторами |
-| `tree` | `_Tree.__init__`: группировка готовых связей по источнику |
+| `tree` | `format_tree`, `TreeFormatter.branch`, `_stop_reason`: дерево |
+| `tree` | `TreeFormatter.__init__`: группировка связей по источнику |
 | `visualize` | `plantuml_source`, `_label`, `_escape`: текст диаграммы |
 | `visualize` | `_alternative`: отметка альтернатив и виртуальных поставщиков |
 | `visualize` | `_edge_source`: направление, цвет и подпись одной связи |

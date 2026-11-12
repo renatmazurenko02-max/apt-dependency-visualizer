@@ -1,13 +1,14 @@
 """Рекурсивный DFS с ограничением глубины, фильтром и защитой от циклов."""
 
 from dataclasses import dataclass, field
+from typing import TypeAlias
 
 from .packages import Package, RepositoryError
 from .resolver import Resolver
 
 
 # Одно имя может иметь разные версии, поэтому узел задаем парой значений.
-NodeKey = tuple[str, str]
+NodeKey: TypeAlias = tuple[str, str]
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,7 @@ class DependencyGraph:
     reverse: bool = False  # В обратном режиме цель зависит от источника.
 
 
-class _Builder:
+class GraphBuilder:
     """Хранить состояние одного обхода, не меняя сами записи каталога."""
 
     def __init__(self, index, root, max_depth, excluded, resolver=None):
@@ -89,7 +90,7 @@ def build_graph(index, root, max_depth, excluded="", resolver=None):
     """Построить граф, считая исходный пакет уровнем ноль."""
     if max_depth < 0:
         raise RepositoryError("Глубина графа должна быть неотрицательной.")
-    builder = _Builder(index, root, max_depth, excluded, resolver)
+    builder = GraphBuilder(index, root, max_depth, excluded, resolver)
     try:
         builder.visit(root, 0)
     except RecursionError as error:

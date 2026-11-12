@@ -1,7 +1,7 @@
 """Текстовое ASCII-дерево уже построенного графа с циклами и повторами."""
 
 
-class _Tree:
+class TreeFormatter:
     """Развернуть граф в дерево вывода, сохранив ограничения путей."""
 
     def __init__(self, graph, max_depth):
@@ -51,6 +51,6 @@ def format_tree(graph, max_depth):
     """Вернуть строки ASCII-дерева без повторного получения зависимостей."""
     if not graph.nodes:
         return ["Исходный пакет исключен фильтром."]
-    tree = _Tree(graph, max_depth)
+    tree = TreeFormatter(graph, max_depth)
     tree.branch(graph.root, "", "", 0, set())
     return tree.lines

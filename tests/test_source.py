@@ -88,8 +88,9 @@ class SourceTests(unittest.TestCase):
 class TestRepositoryTests(unittest.TestCase):
     """Учебный JSON позволяет пользоваться программой без сети."""
 
-    def setUp(self):
+    def prepare(self):
         """Подготовить отдельный временный файл."""
+        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.filename = Path(self.temp.name) / "repository.json"
@@ -100,6 +101,7 @@ class TestRepositoryTests(unittest.TestCase):
 
     def test_direct_dependencies(self):
         """Извлекаются только прямые связи, обход еще не выполняется."""
+        self.prepare()
         self.write_data({
             "A": {"version": "1.0", "dependencies": ["B", "C"]},
             "B": {"version": "1.0", "dependencies": ["D"]},
@@ -111,6 +113,7 @@ class TestRepositoryTests(unittest.TestCase):
 
     def test_invalid_json_structure(self):
         """Неверные типы, имена и отсутствие полей явно отклоняются."""
+        self.prepare()
         bad = [
             {}, [], {"a": {}}, {"A": []},
             {"A": {"version": 1, "dependencies": []}},
@@ -126,6 +129,7 @@ class TestRepositoryTests(unittest.TestCase):
 
     def test_unreadable_json(self):
         """Отсутствующий, поврежденный и неверно закодированный JSON."""
+        self.prepare()
         with self.assertRaises(RepositoryError):
             load_test(self.filename)
         for data in [b"{broken", b"\xff\xfe"]:

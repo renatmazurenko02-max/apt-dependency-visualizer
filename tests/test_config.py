@@ -14,8 +14,9 @@ from src.main import main
 class ConfigTests(unittest.TestCase):
     """Изолированные сценарии чтения пользовательских настроек."""
 
-    def setUp(self):
+    def prepare(self):
         """Создать отдельную папку и минимальные входные файлы."""
+        # Каждый тест вызывает подготовку явно; addCleanup удаляет файлы.
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -43,6 +44,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_valid_local_config(self):
         """Относительный путь разрешается от CSV, не от рабочей папки."""
+        self.prepare()
         self.write_config()
         config = load_config(self.path)
         self.assertEqual(config.package_name, "A")
@@ -53,6 +55,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_valid_remote_config(self):
         """В сетевом режиме проверяется адрес, сеть пока не используется."""
+        self.prepare()
         self.write_config(
             package_name="curl", test_mode="false",
             repository="https://example.org/ubuntu/", max_depth="0",
@@ -65,6 +68,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_invalid_parameters(self):
         """Каждый из семи параметров имеет сценарий ошибочного ввода."""
+        self.prepare()
         cases = [
             ("package_name", "a", "package_name"),
             ("repository", "missing.json", "repository"),
@@ -85,6 +89,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_invalid_remote_urls(self):
         """Ошибки схемы, хоста, порта и пробелов выявляются до запроса."""
+        self.prepare()
         urls = [
             "", "ftp://example.org", "https:///ubuntu", "not-a-url",
             "https://example.org:bad", "https://example.org:70000",
@@ -100,12 +105,14 @@ class ConfigTests(unittest.TestCase):
 
     def test_invalid_ubuntu_package_name(self):
         """В обычном режиме прописные буквы в имени не допускаются."""
+        self.prepare()
         self.write_config(test_mode="false", package_name="Curl")
         with self.assertRaisesRegex(ConfigError, "package_name"):
             load_config(self.path)
 
     def test_all_fields_required(self):
         """Даже пустой фильтр должен присутствовать отдельной строкой."""
+        self.prepare()
         for key in FIELDS:
             with self.subTest(missing=key):
                 self.write_config()
@@ -119,6 +126,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_duplicate_unknown_and_extra_columns(self):
         """Неоднозначные или неизвестные строки нельзя молча пропустить."""
+        self.prepare()
         for extra in ["max_depth,2", "unknown,1", "max_depth,2,3"]:
             with self.subTest(extra=extra):
                 self.write_config()
@@ -129,6 +137,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_bad_csv_and_encoding(self):
         """Поврежденный CSV, неверный заголовок и кодировка дают ошибку."""
+        self.prepare()
         for text in ["", "key,value\n", 'parameter,value\n"unclosed']:
             with self.subTest(text=text):
                 self.path.write_text(text, encoding="utf-8")
@@ -140,6 +149,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_utf8_bom(self):
         """Допускается UTF-8 с BOM, который добавляют некоторые редакторы."""
+        self.prepare()
         self.write_config()
         text = self.path.read_text(encoding="utf-8")
         self.path.write_text(text, encoding="utf-8-sig")
@@ -147,11 +157,13 @@ class ConfigTests(unittest.TestCase):
 
     def test_missing_config(self):
         """Отсутствующий файл конфигурации дает управляемую ошибку."""
+        self.prepare()
         with self.assertRaises(ConfigError):
             load_config(self.path)
 
     def test_cli_success(self):
         """Пакет без зависимостей образует граф из одного узла."""
+        self.prepare()
         self.write_config()
         output = io.StringIO()
         with redirect_stdout(output):
@@ -165,6 +177,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_cli_failure(self):
         """Ошибка выводится в stderr, возвращается ненулевой код."""
+        self.prepare()
         self.write_config(max_depth="-1")
         output, errors = io.StringIO(), io.StringIO()
         with redirect_stdout(output), redirect_stderr(errors):
